@@ -1,0 +1,11 @@
+[project]
+name = "docker-proof-of-concept"
+version = "0.1.0"
+description = "Proof of concept for a Python application using Docker."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "numpy",
+    "opencv-python",
+    "pypylon"
+]
