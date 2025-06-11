@@ -7,5 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "numpy",
     "opencv-python",
-    "pypylon"
+    "pypylon",
+    "pydantic ",
+    "fastapi",
 ]
