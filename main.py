@@ -1,12 +1,11 @@
 import sys
 import numpy as np
+import cv2
 import pypylon.pylon as pylon
+from datetime import datetime
 
 CAMERA_INDEX = 0
-BARCODE_ACTIONS = {
-    "123456": "photo",
-    "999999": "exit"
-}
+BARCODE_ACTIONS = {"TAKE PHOTO,": "photo", "CLOSE": "exit", "q": "exit"}
 
 def capture_photo() -> np.ndarray | None:
     """
@@ -56,6 +55,7 @@ def main():
                 img = capture_photo()
                 if img is not None:
                     print("Photo captured.")
+                    cv2.imwrite(f"./output/{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg", img)
                 else:
                     print("Failed to capture photo.")
             elif action == "exit":
