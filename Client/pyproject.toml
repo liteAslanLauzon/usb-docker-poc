@@ -1,0 +1,11 @@
+[project]
+name = "dockerclient"
+version = "0.1.0"
+description = "Test docker client for Python"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+"opencv-python",
+"numpy",
+"pypylon",
+"requests",]
