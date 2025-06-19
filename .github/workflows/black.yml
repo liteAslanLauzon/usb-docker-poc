@@ -2,16 +2,29 @@ name: Run Black
 
 on:
   push:
-    branches: [main]
   pull_request:
 
 jobs:
   black:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install Black
+        run: pip install black
+
       - name: Run Black on changed files
         run: |
-          git diff --name-only ${{ github.event.before }} ${{ github.sha }} \
-            | grep '\.py$' \
-            | xargs black --check
+          files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} \
+            | grep '\.py$' || true)
+          if [ -n "$files" ]; then
+            echo "$files" | xargs black --check
+          else
+            echo "No Python files to check."
+          fi
