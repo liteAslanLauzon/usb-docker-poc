@@ -5,7 +5,7 @@ def compute(x,y):
  return(x+ y)* (x-y)
 def printResults():
    res=compute( 5,3 )
- print("Result is:",res)
+ print("Result is test:",res)
 
 
 class Test:
