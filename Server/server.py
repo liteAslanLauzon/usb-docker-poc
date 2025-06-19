@@ -1,82 +1,74 @@
-from fastapi import FastAPI, Response, HTTPException
-from fastapi.responses import JSONResponse, StreamingResponse
+import socket
+import struct
 from pypylon import pylon
-import base64
-from fastapi import Request
-import os
 import tempfile
-app = FastAPI()
+import os
+import sys
+
+HOST = "0.0.0.0"
+PORT = 9000
 
 try:
     camera = pylon.InstantCamera(pylon.TlFactory.GetInstance().CreateFirstDevice())
     camera.Open()
+    print("Camera initialized")
 except Exception as e:
     raise RuntimeError(f"Camera setup failed: {e}")
 
-@app.middleware("http")
-async def log_request(request: Request, call_next):
-    body = await request.body()
-    print(f"Request: {request.method} {request.url} Headers: {dict(request.headers)} Body: {body.decode(errors='replace')}")
-    response = await call_next(request)
-    return response
 
-@app.post("/capture")
-def capture_photo(return_base64: bool = True):
-    try:
-        camera.StartGrabbingMax(1)
-        grab_result = camera.RetrieveResult(5000, pylon.TimeoutHandling_ThrowException)
+def capture_image_bytes():
+    camera.StartGrabbingMax(1)
+    grab_result = camera.RetrieveResult(5000, pylon.TimeoutHandling_ThrowException)
 
-        if not grab_result.GrabSucceeded():
-            raise HTTPException(status_code=500, detail="Camera capture failed")
-
+    if grab_result.GrabSucceeded():
         image = pylon.PylonImage()
         image.AttachGrabResultBuffer(grab_result)
-        
+
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
             temp_path = temp_file.name
 
         image.Save(pylon.ImageFileFormat_Png, temp_path)
 
         with open(temp_path, "rb") as f:
-            img_bytes = f.read()
+            img_data = f.read()
 
         os.remove(temp_path)
         grab_result.Release()
-
-        if return_base64:
-            return JSONResponse(content={"image_base64": base64.b64encode(img_bytes).decode()})
-        else:
-            return Response(content=img_bytes, media_type="image/png")
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/test")
-def test_response():
-    return {"status": "ok", "message": "FastAPI is running"}
+        return img_data
+    else:
+        return None
 
 
-@app.post("/capture_disp")
-def capture_and_stream_image():
-    try:
-        camera.StartGrabbingMax(1)
-        grab_result = camera.RetrieveResult(5000, pylon.TimeoutHandling_ThrowException)
+# Start TCP server
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
+    server.bind((HOST, PORT))
+    server.listen()
+    print(f"TCP camera server listening on {HOST}:{PORT}")
 
-        if not grab_result.GrabSucceeded():
-            raise HTTPException(status_code=500, detail="Camera capture failed")
+    while True:
+        conn, addr = server.accept()
+        print(f"Connected by {addr}")
+        with conn:
+            try:
+                request = conn.recv(1024).strip()
+                print(f"Received: {request}")
 
-        image = pylon.PylonImage()
-        image.AttachGrabResultBuffer(grab_result)
-
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
-            temp_path = temp_file.name
-
-        image.Save(pylon.ImageFileFormat_Png, temp_path)
-
-        f = open(temp_path, "rb")
-        grab_result.Release()
-
-        return StreamingResponse(f, media_type="image/png")
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+                if request == b"capture":
+                    img_bytes = capture_image_bytes()
+                    if img_bytes:
+                        # Send 4-byte length followed by image
+                        conn.sendall(struct.pack(">I", len(img_bytes)) + img_bytes)
+                        print(f"Sent image ({len(img_bytes)} bytes)")
+                    else:
+                        conn.sendall(b"FAIL")
+                        print("Capture failed")
+                elif request == b'shutdown':
+                    conn.sendall(b'Shutting down')
+                    print("Shutdown requested")
+                    camera.Close()
+                    sys.exit(0)
+                else:
+                    conn.sendall(b"UNKNOWN_COMMAND")
+                    print("Unknown command received")
+            except Exception as e:
+                print(f"Error handling connection: {e}")

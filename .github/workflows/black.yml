@@ -1,0 +1,5 @@
+- name: Run Black on changed files
+  run: |
+    git diff --name-only ${{ github.event.before }} ${{ github.sha }} \
+      | grep '\.py$' \
+      | xargs black --check
